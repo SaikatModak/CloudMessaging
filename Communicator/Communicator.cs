@@ -40,6 +40,21 @@ namespace Utility
       return ret;
     }
 
+    public void SendMessage(string channel, string message)
+    {
+      mPubnub.Publish<string>(
+          channel,
+          message,
+          SendCallback,
+          ErrorCallback
+          );
+    }
+
+    private void SendCallback(string obj)
+    {
+      mListener.ProcessSentStatus(obj);
+    }
+
     private void ErrorCallback(PubnubClientError obj)
     {
       throw new NotImplementedException();
@@ -47,7 +62,6 @@ namespace Utility
 
     private void ConnectCallback(string obj)
     {
-      //throw new NotImplementedException();
       mWaitHandle.Set();
     }
 

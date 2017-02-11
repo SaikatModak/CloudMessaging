@@ -10,7 +10,8 @@ namespace TestCloudMessagingApps
   {
     public void ProcessSentStatus(string result)
     {
-      throw new NotImplementedException();
+      //SentStatus = 
+      ev.Set();
     }
 
     public void ProcesssReceivedMessage(string channel, string message)
@@ -27,6 +28,7 @@ namespace TestCloudMessagingApps
 
     public string Channel {get; set;}
     public string Message { get; set;}
+    public bool SentStatus { get; set; }
     private ManualResetEvent ev;
   }
 
@@ -67,6 +69,22 @@ namespace TestCloudMessagingApps
       ev.Reset();
       Assert.IsTrue(res);
       Assert.AreEqual(message, ob.Message);
+      Assert.AreEqual(channel, ob.Channel);
+    }
+
+    [TestMethod]
+    public void SendMessage_Successful()
+    {
+      TestObserver ob = new TestObserver(ev);
+      Communicator c = new Communicator(ob);
+
+      string channel = "999";
+      string message = "hi";
+
+      c.SendMessage(channel,message);
+      var res = ev.WaitOne(timeout);
+      ev.Reset();
+      Assert.IsTrue(res);
     }
 
     private void DisplayErrorMessage(PubnubClientError obj)
