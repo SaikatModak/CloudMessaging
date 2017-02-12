@@ -1,17 +1,14 @@
 ﻿using PubNubMessaging.Core;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Utility
 {
   public interface IMessageProcessor
   {
+    void ProcessConnectStatus(bool status, string message);
     void ProcesssReceivedMessage(string contact, string message);
-    void ProcessSentStatus(string result);
+    void ProcessSentStatus(bool status, string message);
   }
 
   public class Communicator
@@ -21,23 +18,19 @@ namespace Utility
     {
       mListener = listener;
       mPubnub = new Pubnub(PUBLISHKEY, SUBSCRIBEKEY);
-      mWaitHandle = new ManualResetEvent(false);
       if (!String.IsNullOrEmpty(subKey))
         SUBSCRIBEKEY = subKey;
       if (!String.IsNullOrEmpty(pubKey))
         PUBLISHKEY = pubKey;
     }
 
-    public bool ListenChannel(string channel)
+    public void ListenChannel(string channel)
     {
       mPubnub.Subscribe<string>(
         channel,
         SubscribeCallback,
         ConnectCallback,
-        ErrorCallback);
-      bool ret = mWaitHandle.WaitOne(mTimeout);
-      mWaitHandle.Reset();
-      return ret;
+        ErrorCallbackSubscribe);
     }
 
     public void SendMessage(string channel, string message)
@@ -46,50 +39,78 @@ namespace Utility
           channel,
           message,
           SendCallback,
-          ErrorCallback
+          ErrorCallbackPublish
           );
     }
 
+    //Private Section
     private void SendCallback(string obj)
     {
-      mListener.ProcessSentStatus(obj);
+      var msgs = ParseJson(obj);
+      bool bStatus = false;
+      string channel = "";
+      if (msgs.Count == 4)
+      {
+        if (msgs[1].Equals("Sent"))
+        {
+          bStatus = true;
+          channel = msgs[3];
+        }
+      }
+      mListener.ProcessSentStatus(bStatus, channel);
     }
 
-    private void ErrorCallback(PubnubClientError obj)
+    private void ErrorCallbackSubscribe(PubnubClientError obj)
     {
-      throw new NotImplementedException();
+      mListener.ProcessConnectStatus(false, obj.Description);
+    }
+
+    private void ErrorCallbackPublish(PubnubClientError obj)
+    {
+      mListener.ProcessSentStatus(false, obj.Description);
     }
 
     private void ConnectCallback(string obj)
     {
-      mWaitHandle.Set();
+      var msgs = ParseJson(obj);
+      bool bStatus = false;
+      string channel = "";
+      if (msgs.Count == 3)
+      {
+        if (msgs[1].Equals("Connected"))
+        {
+          bStatus = true;
+          channel = msgs[2];
+        }
+      }
+      mListener.ProcessConnectStatus(bStatus, channel);
     }
 
-    //Private Section
     private void SubscribeCallback(string obj)
     {
-      Console.WriteLine("SUBSCRIBE REGULAR CALLBACK:");
-      Console.WriteLine(obj);
-      string resultActualMessage = "";
-      string resultContact = "";
-      if (!string.IsNullOrEmpty(obj) && !string.IsNullOrEmpty(obj.Trim()))
+      var msgs = ParseJson(obj);
+      string msg = "";
+      string channel = "";
+      if (msgs.Count == 3)
       {
-        List<object> deserializedMessage = mPubnub.JsonPluggableLibrary.DeserializeToListOfObject(obj);
+        msg = msgs[0];
+        channel = msgs[2];
+        mListener.ProcesssReceivedMessage(channel, msg);
+      }
+    }
+
+    private List<string> ParseJson(string msg)
+    {
+      List<string> messages = new List<string>();
+      if(!string.IsNullOrEmpty(msg) && !string.IsNullOrEmpty(msg.Trim()))
+      {
+        List<object> deserializedMessage = mPubnub.JsonPluggableLibrary.DeserializeToListOfObject(msg);
         if (deserializedMessage != null && deserializedMessage.Count > 0)
         {
-          object subscribedObject = (object)deserializedMessage[0];
-          if (subscribedObject != null)
-          {
-            resultActualMessage = subscribedObject.ToString();
-          }
-          subscribedObject = (object)deserializedMessage[2];
-          if (subscribedObject != null)
-          {
-            resultContact = subscribedObject.ToString();
-          }
+          deserializedMessage.ForEach(x => messages.Add(x.ToString()));
         }
-        mListener.ProcesssReceivedMessage(resultContact, resultActualMessage);
       }
+      return messages;
     }
 
     private readonly string PUBLISHKEY = "pub-c-221f8e24-5c10-4f7d-972d-2ebded5abdff";
@@ -97,6 +118,5 @@ namespace Utility
     private IMessageProcessor mListener;
     private Pubnub mPubnub;
     private const int mTimeout = 2000;
-    private ManualResetEvent mWaitHandle;
   }
 }
