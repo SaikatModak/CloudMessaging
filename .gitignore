@@ -1,3 +1,6 @@
 /packages
-/DirectChat/bin/Debug
-/DirectChat/obj/Debug
+/Communicator/obj/Debug
+/.vs
+/Communicator/bin/Debug
+/TestCloudMessagingApps/bin/Debug
+/TestCloudMessagingApps/obj/Debug
